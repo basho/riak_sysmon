@@ -29,7 +29,7 @@ filter.
 There can be only one system_monitor process
 --------------------------------------------
 
-(Silly reference to (The Highlander)[http://www.imdb.com/title/tt0091203/]
+(Silly reference to [The Highlander](http://www.imdb.com/title/tt0091203/)
 omitted....)
 
 The Erlang/OTP documentation is pretty clear on this point: only one
@@ -39,6 +39,6 @@ process can receive `system_monitor` messages.  But using the
 `riak_sysmon_handler` event handler.
 
 See the
-(`gen_event` documentation for `add_up_event/3`)[http://www.erlang.org/doc/man/gen_event.html#add_sup_handler-3]
+[`gen_event` documentation for `add_up_event/3`](http://www.erlang.org/doc/man/gen_event.html#add_sup_handler-3)
 for API details.  See the example event handler module in the source
 repository for example usage.
