@@ -41,4 +41,4 @@ process can receive `system_monitor` messages.  But using the
 See the
 [`gen_event` documentation for `add_up_event/3`](http://www.erlang.org/doc/man/gen_event.html#add_sup_handler-3)
 for API details.  See the example event handler module in the source
-repository for example usage.
+repository, `src/riak_sysmon_example_handler.erl`, for example usage.
