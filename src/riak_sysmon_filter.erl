@@ -87,7 +87,7 @@ start_link(MonitorProps) ->
 %% a usage example.
 
 add_custom_handler(Module, Args) ->
-    gen_event:add_handler(riak_sysmon_handler, Module, Args).
+    gen_event:add_sup_handler(riak_sysmon_handler, Module, Args).
     
 call_custom_handler(Module, Call) ->
     call_custom_handler(Module, Call, infinity).
