@@ -6,3 +6,6 @@ clean:
 
 test: all
 	./rebar eunit
+
+doc: all
+	./rebar doc

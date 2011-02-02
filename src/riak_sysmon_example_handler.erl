@@ -14,6 +14,9 @@
 %% specific language governing permissions and limitations
 %% under the License.
 
+%% @doc A simple example for adding a custom event handler (this module)
+%% to the `riak_sysmon' application's `system_monitor' event manager.
+
 -module(riak_sysmon_example_handler).
 
 -behaviour(gen_event).
@@ -34,10 +37,10 @@
 %%%===================================================================
 
 add_handler() ->
-    gen_event:add_handler(riak_sysmon_handler, ?MODULE, []).
+    riak_sysmon_filter:add_custom_handler(?MODULE, []).
 
 get_call_count() ->
-    gen_event:call(riak_sysmon_handler, ?MODULE, get_call_count, infinity).
+    riak_sysmon_filter:call_custom_handler(?MODULE, get_call_count, infinity).
 
 %%%===================================================================
 %%% gen_event callbacks

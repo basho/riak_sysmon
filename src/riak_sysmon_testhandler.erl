@@ -14,6 +14,8 @@
 %% specific language governing permissions and limitations
 %% under the License.
 
+%% @doc Support for EUnit testing: simple event-collecting event handler.
+
 -module(riak_sysmon_testhandler).
 
 -ifdef(TEST).
@@ -27,7 +29,9 @@
 -export([init/1, handle_event/2, handle_call/2, 
          handle_info/2, terminate/2, code_change/3]).
 
--record(state, {list = []}).
+-record(state, {
+          list = [] :: list()
+         }).
 
 %%%===================================================================
 %%% gen_event callbacks
@@ -47,7 +51,7 @@ start_link() ->
 %% @doc
 %% Adds an event handler
 %%
-%% @spec add_handler() -> ok | {'EXIT', Reason} | term()
+%% @spec add_handler(gen_event:emgr_name()) -> ok | {'EXIT', Reason} | term()
 %% @end
 %%--------------------------------------------------------------------
 add_handler(EventServer) ->

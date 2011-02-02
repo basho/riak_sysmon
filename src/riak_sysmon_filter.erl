@@ -14,6 +14,11 @@
 %% specific language governing permissions and limitations
 %% under the License.
 
+%% @doc Filtering/rate-limiting mechanism for the Erlang virtual machine's
+%% `system_monitor' events.
+%%
+%% See the `README.md' file at the top of the source repository for details.
+
 -module(riak_sysmon_filter).
 
 -behaviour(gen_server).
@@ -23,7 +28,8 @@
 -endif. % TEST
 
 %% API
--export([start_link/0]).
+-export([start_link/0, start_link/1]).
+-export([add_custom_handler/2, call_custom_handler/2, call_custom_handler/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -53,7 +59,48 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+    start_link([gc, heap, port, dist_port]).
+
+%% @doc Start riak_sysmon filter process
+%%
+%% The `MonitorProps' arg is a property list that may contain zero
+%% or more of the following atoms:
+%% <ul>
+%% <li> <b>gc</b> Enable long garbage collection events.
+%%      The minimum time (in milliseconds) is defined by the application
+%%      `riak_sysmon' environment variable `gc_ms_limit'.
+%%      </li>
+%% <li> <b>heap</b> Enable process large heap events. </li>
+%%      The minimum size (in machine words) is defined by the application
+%%      `riak_sysmon' environment variable `process_heap_limit'.
+%% <li> <b>busy_port</b> Enable `busy_port' events. </li>
+%% <li> <b>busy_dist_port</b> Enable `busy_dist_port' events. </li>
+%% </ul>
+
+start_link(MonitorProps) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, MonitorProps, []).
+
+%% @doc Add a custom handler module to the `riak_sysmon'.
+%%
+%% See the source code of the
+%% {@link riak_sysmon_example_handler:add_handler/0} function for
+%% a usage example.
+
+add_custom_handler(Module, Args) ->
+    gen_event:add_handler(riak_sysmon_handler, Module, Args).
+    
+call_custom_handler(Module, Call) ->
+    call_custom_handler(Module, Call, infinity).
+
+%% @doc Make a synchronous call to a `riak_sysmon' specific custom
+%% event handler.
+%%
+%% See the source code of the
+%% {@link riak_sysmon_example_handler:get_call_count/0} function for
+%% a usage example.
+
+call_custom_handler(Module, Call, Timeout) ->
+    gen_event:call(riak_sysmon_handler, Module, Call, Timeout).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -70,13 +117,15 @@ start_link() ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([]) ->
+init(MonitorProps) ->
     GcMsLimit = get_gc_ms_limit(),
     HeapWordLimit = get_heap_word_limit(),
-    erlang:system_monitor({self(), [{long_gc, GcMsLimit},
-                                    {large_heap, HeapWordLimit},
-                                    busy_port,
-                                    busy_dist_port]}),
+    Opts = lists:flatten(
+             [[{long_gc, GcMsLimit} || lists:member(gc, MonitorProps)],
+              [{large_heap, HeapWordLimit} || lists:member(heap, MonitorProps)],
+              [busy_port || lists:member(busy_port, MonitorProps)],
+              [busy_dist_port || lists:member(busy_dist_port, MonitorProps)]]),
+    erlang:system_monitor(self(), Opts),
     {ok, #state{proc_limit = get_proc_limit(),
                 port_limit = get_port_limit(),
                 tref = start_interval_timer()
@@ -142,12 +191,13 @@ handle_info({monitor, _, ProcType, _} = Info,
 handle_info({monitor, _, PortType, _} = Info,
             #state{port_count = Ports, port_limit = PortLimit} = State)
   when PortType == busy_port; PortType == busy_dist_port ->
-    if Ports + 1 =< PortLimit ->
+    NewPorts = Ports + 1,
+    if NewPorts =< PortLimit ->
             gen_event:notify(riak_sysmon_handler, Info);
        true ->
             ok
     end,
-    {noreply, State#state{port_count = Ports + 1}};
+    {noreply, State#state{port_count = NewPorts}};
 handle_info({monitor, _, _, _} = Info, #state{bogus_msg_p = false} = State) ->
     error_logger:error_msg("Unknown monitor message: ~P\n", [Info, 20]),
     {noreply, State#state{bogus_msg_p = true}};
@@ -169,7 +219,7 @@ handle_info(reset, #state{proc_count = Procs, proc_limit = ProcLimit,
         {Pid, _} when Pid == self() ->
             ok;
         Res ->
-            error_logger:error_msg("~s: current system monitor info is: ~P\n",
+            error_logger:error_msg("~s: current system monitor is: ~P\n",
                                    [?MODULE, Res, 20])
     end,
     {noreply, State#state{proc_count = 0,
@@ -219,7 +269,9 @@ get_port_limit() ->
     nonzero_app_env(riak_sysmon, port_limit, 30).
 
 %% The default limits below here are more of educated guesses than
-%% based on hard experience.
+%% based on hard experience.  Practical upper limits can vary quite a
+%% bit by application & workload and are usually found by
+%% experimentation.
 
 get_gc_ms_limit() ->
     nonzero_app_env(riak_sysmon, gc_ms_limit, 50).
@@ -247,9 +299,14 @@ start_timer() ->
     gen_server:call(?MODULE, start_timer).
 
 limit_test() ->
+    %% Constants ... limits should be at least one or test case will break
+
     ProcLimit = 10,
     PortLimit = 9,
     EventHandler = riak_sysmon_handler,
+    TestHandler = riak_sysmon_testhandler,
+
+    %% Setup part 1: filter server
 
     catch exit(whereis(?MODULE), kill),
     timer:sleep(10),
@@ -261,10 +318,12 @@ limit_test() ->
     {ok, _FilterPid} = ?MODULE:start_link(),
     ?MODULE:stop_timer(),
 
+    %% Setup part 2: gen_event server
+
     catch exit(whereis(EventHandler), kill),
     timer:sleep(10),
     {ok, _HandlerPid} = gen_event:start_link({local, EventHandler}),
-    ok = riak_sysmon_testhandler:add_handler(EventHandler),
+    ok = TestHandler:add_handler(EventHandler),
 
     %% Check that all legit message types are passed through.
 
@@ -272,7 +331,7 @@ limit_test() ->
     [?MODULE ! {monitor, yay_pid, ProcType, whatever} || ProcType <- ProcTypes],
     ?MODULE ! reset,
     timer:sleep(100),
-    Events1 = riak_sysmon_testhandler:get_events(EventHandler),
+    Events1 = TestHandler:get_events(EventHandler),
     [true = lists:keymember(ProcType, 3, Events1) || ProcType <- ProcTypes],
     
     %% Check that limits are enforced.
@@ -283,9 +342,9 @@ limit_test() ->
         X <- lists:seq(1, (ProcLimit + PortLimit) * 5)],
     ?MODULE ! reset,
     timer:sleep(100),
-    Events2 = riak_sysmon_testhandler:get_events(EventHandler),
+    Events2 = TestHandler:get_events(EventHandler),
     timer:sleep(50),
-    [] = riak_sysmon_testhandler:get_events(EventHandler), % Got 'em all
+    [] = TestHandler:get_events(EventHandler), % Got 'em all
     %% Sanity checks
     ProcLimit = length([X || {monitor, _, long_gc, _} = X <- Events2]),
     PortLimit = length([X || {monitor, _, busy_port, _} = X <- Events2]),
