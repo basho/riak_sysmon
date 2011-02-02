@@ -68,8 +68,9 @@ init([]) ->
 
     Filter = {riak_sysmon_filter, {riak_sysmon_filter, start_link, []},
               Restart, Shutdown, Type, [riak_sysmon_filter]},
-    Handler = {riak_sysmon_handler, {riak_sysmon_handler, start_link, []},
-              Restart, Shutdown, Type, [riak_sysmon_handler]},
+    Handler = {riak_sysmon_mgr, {gen_event, start_link,
+                                 [{local, riak_sysmon_handler}]},
+              Restart, Shutdown, Type, []},
 
     {ok, {SupFlags, [Filter, Handler]}}.
 

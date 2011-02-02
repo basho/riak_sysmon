@@ -132,12 +132,13 @@ handle_cast(_Msg, State) ->
 handle_info({monitor, _, ProcType, _} = Info,
             #state{proc_count = Procs, proc_limit = ProcLimit} = State)
   when ProcType == long_gc; ProcType == large_heap ->
-    if Procs + 1 =< ProcLimit ->
+    NewProcs = Procs + 1,
+    if NewProcs =< ProcLimit ->
             gen_event:notify(riak_sysmon_handler, Info);
        true ->
             ok
     end,
-    {noreply, State#state{proc_count = Procs + 1}};
+    {noreply, State#state{proc_count = NewProcs}};
 handle_info({monitor, _, PortType, _} = Info,
             #state{port_count = Ports, port_limit = PortLimit} = State)
   when PortType == busy_port; PortType == busy_dist_port ->
@@ -154,15 +155,22 @@ handle_info(reset, #state{proc_count = Procs, proc_limit = ProcLimit,
                           port_count = Ports, port_limit = PortLimit} = State)->
     if Procs > ProcLimit ->
             gen_event:notify(riak_sysmon_handler,
-                             {suppressed, proc_events, ProcLimit - Procs});
+                             {suppressed, proc_events, Procs - ProcLimit});
        true ->
             ok
     end,
     if Ports > PortLimit ->
             gen_event:notify(riak_sysmon_handler,
-                             {suppressed, port_events, PortLimit - Ports});
+                             {suppressed, port_events, Ports - PortLimit});
        true ->
             ok
+    end,
+    case erlang:system_monitor() of
+        {Pid, _} when Pid == self() ->
+            ok;
+        Res ->
+            error_logger:error_msg("~s: current system monitor info is: ~P\n",
+                                   [?MODULE, Res, 20])
     end,
     {noreply, State#state{proc_count = 0,
                           port_count = 0}};
@@ -217,7 +225,8 @@ get_gc_ms_limit() ->
     nonzero_app_env(riak_sysmon, gc_ms_limit, 50).
 
 get_heap_word_limit() ->
-    nonzero_app_env(riak_sysmon, heap_word_limit, 50).
+    %% 256 Kwords = 10MB on a 32-bit VM, 20MB on a 64-bit VM
+    nonzero_app_env(riak_sysmon, heap_word_limit, 256*1024).
 
 nonzero_app_env(App, Key, Default) ->
     case application:get_env(App, Key) of
@@ -238,6 +247,51 @@ start_timer() ->
     gen_server:call(?MODULE, start_timer).
 
 limit_test() ->
-    exit(boom).
+    ProcLimit = 10,
+    PortLimit = 9,
+    EventHandler = riak_sysmon_handler,
+
+    catch exit(whereis(?MODULE), kill),
+    timer:sleep(10),
+    application:set_env(riak_sysmon, process_limit, ProcLimit),
+    application:set_env(riak_sysmon, port_limit, PortLimit),
+    %% Use huge limits to avoid unexpected messages that could confuse us.
+    application:set_env(riak_sysmon, gc_ms_limit, 9999999999),
+    application:set_env(riak_sysmon, heap_word_limit, 9999999999),
+    {ok, _FilterPid} = ?MODULE:start_link(),
+    ?MODULE:stop_timer(),
+
+    catch exit(whereis(EventHandler), kill),
+    timer:sleep(10),
+    {ok, _HandlerPid} = gen_event:start_link({local, EventHandler}),
+    ok = riak_sysmon_testhandler:add_handler(EventHandler),
+
+    %% Check that all legit message types are passed through.
+
+    ProcTypes = [long_gc, large_heap, busy_port, busy_dist_port],
+    [?MODULE ! {monitor, yay_pid, ProcType, whatever} || ProcType <- ProcTypes],
+    ?MODULE ! reset,
+    timer:sleep(100),
+    Events1 = riak_sysmon_testhandler:get_events(EventHandler),
+    [true = lists:keymember(ProcType, 3, Events1) || ProcType <- ProcTypes],
+    
+    %% Check that limits are enforced.
+
+    [?MODULE ! {monitor, pid1, long_gc, X} ||
+        X <- lists:seq(1, (ProcLimit + PortLimit) * 5)],
+    [?MODULE ! {monitor, pid2, busy_port, X} ||
+        X <- lists:seq(1, (ProcLimit + PortLimit) * 5)],
+    ?MODULE ! reset,
+    timer:sleep(100),
+    Events2 = riak_sysmon_testhandler:get_events(EventHandler),
+    timer:sleep(50),
+    [] = riak_sysmon_testhandler:get_events(EventHandler), % Got 'em all
+    %% Sanity checks
+    ProcLimit = length([X || {monitor, _, long_gc, _} = X <- Events2]),
+    PortLimit = length([X || {monitor, _, busy_port, _} = X <- Events2]),
+    [_] = [X || {suppressed, proc_events, _} = X <- Events2],
+    [_] = [X || {suppressed, port_events, _} = X <- Events2],
+    
+    ok.
 
 -endif. % TEST

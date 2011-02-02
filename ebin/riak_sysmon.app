@@ -1,12 +1,13 @@
 {application, riak_sysmon,
  [
   {description, "Rate-limiting system_monitor event handler"},
-  {vsn, "0.1.0"},
+  {vsn, "0.9.0"},
   {modules, [
              riak_sysmon_app,
+             riak_sysmon_example_handler,
              riak_sysmon_filter,
-             riak_sysmon_handler,
-             riak_sysmon_sup
+             riak_sysmon_sup,
+             riak_sysmon_testhandler
             ]},
   {applications, [
                   kernel,

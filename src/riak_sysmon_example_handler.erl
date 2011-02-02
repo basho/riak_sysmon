@@ -14,47 +14,30 @@
 %% specific language governing permissions and limitations
 %% under the License.
 
--module(riak_sysmon_testhandler).
-
--ifdef(TEST).
+-module(riak_sysmon_example_handler).
 
 -behaviour(gen_event).
 
 %% API
--export([start_link/0, add_handler/1, get_events/1]).
+-export([add_handler/0, get_call_count/0]).
 
 %% gen_event callbacks
 -export([init/1, handle_event/2, handle_call/2, 
          handle_info/2, terminate/2, code_change/3]).
 
--record(state, {list = []}).
+-record(state, {
+          count = 0 :: integer()
+         }).
 
 %%%===================================================================
 %%% gen_event callbacks
 %%%===================================================================
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Creates an event manager
-%%
-%% @spec start_link() -> {ok, Pid} | {error, Error}
-%% @end
-%%--------------------------------------------------------------------
-start_link() ->
-    gen_event:start_link({local, ?MODULE}).
+add_handler() ->
+    gen_event:add_handler(riak_sysmon_handler, ?MODULE, []).
 
-%%--------------------------------------------------------------------
-%% @doc
-%% Adds an event handler
-%%
-%% @spec add_handler() -> ok | {'EXIT', Reason} | term()
-%% @end
-%%--------------------------------------------------------------------
-add_handler(EventServer) ->
-    gen_event:add_sup_handler(EventServer, ?MODULE, []).
-
-get_events(EventServer) ->
-    gen_event:call(EventServer, ?MODULE, get_events).
+get_call_count() ->
+    gen_event:call(riak_sysmon_handler, ?MODULE, get_call_count, infinity).
 
 %%%===================================================================
 %%% gen_event callbacks
@@ -85,8 +68,9 @@ init([]) ->
 %%                          remove_handler
 %% @end
 %%--------------------------------------------------------------------
-handle_event(Event, #state{list = List} = State) ->
-    {ok, State#state{list = [Event|List]}}.
+handle_event(Event, #state{count = Count} = State) ->
+    error_logger:info_msg("Example: event ~P\n", [Event, 20]),
+    {ok, State#state{count = Count + 1}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -101,10 +85,8 @@ handle_event(Event, #state{list = List} = State) ->
 %%                   {remove_handler, Reply}
 %% @end
 %%--------------------------------------------------------------------
-handle_call(get_events, State) ->
-    {ok, lists:reverse(State#state.list), State#state{list = []}};
-handle_call(_Request, State) ->
-    Reply = not_supported,
+handle_call(get_call_count, State) ->
+    Reply = State#state.count,
     {ok, Reply, State}.
 
 %%--------------------------------------------------------------------
@@ -120,7 +102,8 @@ handle_call(_Request, State) ->
 %%                         remove_handler
 %% @end
 %%--------------------------------------------------------------------
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+    error_logger:info_msg("Example: FYI, handle_info got ~p\n", [Info]),
     {ok, State}.
 
 %%--------------------------------------------------------------------
@@ -133,7 +116,9 @@ handle_info(_Info, State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(Reason, State) ->
+    error_logger:info_msg("Example: stopping because ~p, my count ~p\n",
+                          [Reason, State#state.count]),
     ok.
 
 %%--------------------------------------------------------------------
@@ -150,5 +135,3 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-
--endif. % TEST
