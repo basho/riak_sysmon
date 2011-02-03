@@ -277,8 +277,8 @@ get_gc_ms_limit() ->
     nonzero_app_env(riak_sysmon, gc_ms_limit, 50).
 
 get_heap_word_limit() ->
-    %% 256 Kwords = 10MB on a 32-bit VM, 20MB on a 64-bit VM
-    nonzero_app_env(riak_sysmon, heap_word_limit, 256*1024).
+    %% 10 Mwords = 40MB on a 32-bit VM, 80MB on a 64-bit VM
+    nonzero_app_env(riak_sysmon, heap_word_limit, 10*1024*1024).
 
 nonzero_app_env(App, Key, Default) ->
     case application:get_env(App, Key) of
