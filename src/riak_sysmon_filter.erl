@@ -43,7 +43,7 @@
           proc_limit = 10     :: integer(),
           port_count = 0      :: integer(),
           port_limit = 10     :: integer(),
-          tref                :: term(),
+          tref                :: timer:tref() | undefined,
           bogus_msg_p = false :: boolean()
          }).
 
@@ -125,7 +125,7 @@ init(MonitorProps) ->
               [{large_heap, HeapWordLimit} || lists:member(heap, MonitorProps)],
               [busy_port || lists:member(busy_port, MonitorProps)],
               [busy_dist_port || lists:member(busy_dist_port, MonitorProps)]]),
-    erlang:system_monitor(self(), Opts),
+    _ = erlang:system_monitor(self(), Opts),
     {ok, #state{proc_limit = get_proc_limit(),
                 port_limit = get_port_limit(),
                 tref = start_interval_timer()

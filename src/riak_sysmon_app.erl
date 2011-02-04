@@ -47,11 +47,11 @@
 %%--------------------------------------------------------------------
 start(_StartType, _StartArgs) ->
     case riak_sysmon_sup:start_link() of
-        {ok, Pid} ->
-            {ok, Pid};
+        {ok, _Pid} = Ok ->
+            Ok;
         Error ->
             Error
-                end.
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
