@@ -38,6 +38,10 @@ process can receive `system_monitor` messages.  But using the
 `system_monitor` events, each party can add an event handler to the
 `riak_sysmon_handler` event handler.
 
+The event handler process in this application uses the registered name
+`riak_sysmon_handler`.  To add your handler, use something like:
+`gen_event:add_sup_handler(riak_sysmon_handler, yourModuleName, YourInitialArgs)`.
+
 See the
 [`gen_event` documentation for `add_up_event/3`](http://www.erlang.org/doc/man/gen_event.html#add_sup_handler-3)
 for API details.  See the example event handler module in the source

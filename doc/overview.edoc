@@ -56,3 +56,12 @@ messages inform your event handler that `Num' events of a certain type
 (`proc_events' or `port_events') were suppressed in the last second
 (i.e. their arrival rate exceeded the configured rate limit). </li>
 </ul>
+
+The event handler process in this application uses the registered name
+`riak_sysmon_handler'.  To add your handler, use something like:
+`gen_event:add_sup_handler(riak_sysmon_handler, yourModuleName, YourInitialArgs)'.
+
+See
+{@link gen_event:add_sup_handler/3}
+for API details.  See the example event handler module in the source
+repository, `src/riak_sysmon_example_handler.erl', for example usage.
