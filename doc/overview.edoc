@@ -1,6 +1,6 @@
 @author Scott Lystig Fritchie <scott@basho.com>
 @copyright 2011 Basho Technologies, Inc.
-@title The `riak_sysmon' application
+@title The 'riak_sysmon' application
 
 @doc 
 
@@ -39,3 +39,20 @@ process can receive `system_monitor' messages.  But using the
 `riak_sysmon' OTP app, if multiple parties are interested in receiving
 `system_monitor' events, each party can add an event handler to the
 `riak_sysmon_handler' event handler.
+
+== Events sent to custom event handlers ==
+
+The following events can be sent from the `riak_sysmon'
+filtering/rate-limiting process (a.k.a. `riak_sysmon_filter') to the
+event handler process (a.k.a. `riak_sysmon_handler').
+
+<ul>
+<li> `{monitor, pid(), atom(), term()}' ... These are
+`system_monitor' messages as they are received verbatim by the
+`riak_sysmon_filter' process.  See the reference documentation for
+`erlang:system_monitor/2' for details. </li>
+<li> `{suppressed, proc_events | port_events, Num::integer()}' ... These
+messages inform your event handler that `Num' events of a certain type
+(`proc_events' or `port_events') were suppressed in the last second
+(i.e. their arrival rate exceeded the configured rate limit). </li>
+</ul>

@@ -42,3 +42,19 @@ See the
 [`gen_event` documentation for `add_up_event/3`](http://www.erlang.org/doc/man/gen_event.html#add_sup_handler-3)
 for API details.  See the example event handler module in the source
 repository, `src/riak_sysmon_example_handler.erl`, for example usage.
+
+Events sent to custom event handlers
+------------------------------------
+
+The following events can be sent from the `riak_sysmon`
+filtering/rate-limiting process (a.k.a. `riak_sysmon_filter`) to the
+event handler process (a.k.a. `riak_sysmon_handler`).
+
+* `{monitor, pid(), atom(), term()}` ... These are
+  `system_monitor` messages as they are received verbatim by the
+  `riak_sysmon_filter` process.  See the reference documentation for
+  `erlang:system_monitor/2` for details.
+* `{suppressed, proc_events | port_events, Num::integer()}` ... These
+  messages inform your event handler that `Num` events of a certain type
+  (`proc_events` or `port_events`) were suppressed in the last second
+  (i.e. their arrival rate exceeded the configured rate limit).
