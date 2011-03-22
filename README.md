@@ -43,7 +43,7 @@ The event handler process in this application uses the registered name
 `gen_event:add_sup_handler(riak_sysmon_handler, yourModuleName, YourInitialArgs)`.
 
 See the
-[`gen_event` documentation for `add_up_event/3`](http://www.erlang.org/doc/man/gen_event.html#add_sup_handler-3)
+[`gen_event` documentation for `add_sup_event/3`](http://www.erlang.org/doc/man/gen_event.html#add_sup_handler-3)
 for API details.  See the example event handler module in the source
 repository, `src/riak_sysmon_example_handler.erl`, for example usage.
 
