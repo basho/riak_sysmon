@@ -313,8 +313,8 @@ limit_test() ->
     application:set_env(riak_sysmon, process_limit, ProcLimit),
     application:set_env(riak_sysmon, port_limit, PortLimit),
     %% Use huge limits to avoid unexpected messages that could confuse us.
-    application:set_env(riak_sysmon, gc_ms_limit, 9999999999),
-    application:set_env(riak_sysmon, heap_word_limit, 9999999999),
+    application:set_env(riak_sysmon, gc_ms_limit, 999999999),
+    application:set_env(riak_sysmon, heap_word_limit, 999999999),
     {ok, _FilterPid} = ?MODULE:start_link(),
     ?MODULE:stop_timer(),
 
