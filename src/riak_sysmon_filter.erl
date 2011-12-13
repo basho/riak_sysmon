@@ -120,11 +120,17 @@ call_custom_handler(Module, Call, Timeout) ->
 init(MonitorProps) ->
     GcMsLimit = get_gc_ms_limit(),
     HeapWordLimit = get_heap_word_limit(),
+    BusyPortP = get_busy_port(),
+    BusyDistPortP = get_busy_dist_port(),
     Opts = lists:flatten(
-             [[{long_gc, GcMsLimit} || lists:member(gc, MonitorProps)],
-              [{large_heap, HeapWordLimit} || lists:member(heap, MonitorProps)],
-              [busy_port || lists:member(busy_port, MonitorProps)],
-              [busy_dist_port || lists:member(busy_dist_port, MonitorProps)]]),
+             [[{long_gc, GcMsLimit} || lists:member(gc, MonitorProps)
+                                           andalso GcMsLimit > 0],
+              [{large_heap, HeapWordLimit} || lists:member(heap, MonitorProps)
+                                                  andalso HeapWordLimit > 0],
+              [busy_port || lists:member(port, MonitorProps)
+                                andalso BusyPortP],
+              [busy_dist_port || lists:member(dist_port, MonitorProps)
+                                     andalso BusyDistPortP]]),
     _ = erlang:system_monitor(self(), Opts),
     {ok, #state{proc_limit = get_proc_limit(),
                 port_limit = get_port_limit(),
@@ -280,10 +286,22 @@ get_heap_word_limit() ->
     %% 10 Mwords = 40MB on a 32-bit VM, 80MB on a 64-bit VM
     nonzero_app_env(riak_sysmon, heap_word_limit, 10*1024*1024).
 
+get_busy_port() ->
+    boolean_app_env(riak_sysmon, busy_port, true).
+
+get_busy_dist_port() ->
+    boolean_app_env(riak_sysmon, busy_dist_port, true).
+
 nonzero_app_env(App, Key, Default) ->
     case application:get_env(App, Key) of
         {ok, N} when N >= 0 -> N;
         _                   -> Default
+    end.
+
+boolean_app_env(App, Key, Default) ->
+    case application:get_env(App, Key) of
+        {ok, B} when B == true; B == false -> B;
+        _                                  -> Default
     end.
     
 start_interval_timer() ->
