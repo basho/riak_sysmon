@@ -338,7 +338,12 @@ annotate_dist_port(busy_dist_port, Port, S) ->
     end.    
 
 get_node_map() ->
-    {ok, NI} = net_kernel:nodes_info(),
+    NodesInfo = try
+                    {ok, NI} = net_kernel:nodes_info(),
+                    NI
+                catch error:badarg ->
+                    []
+                end,
     lists:map(fun({Node, Props}) ->
                       %% Drat, #net_address is a private record in
                       %% kernel/src/net_address.hrl, but it's exposed via
@@ -350,7 +355,7 @@ get_node_map() ->
                           _X ->
                               {unknown, Node}
                       end
-              end, NI).
+              end, NodesInfo).
 
 -ifdef(TEST).
 
@@ -390,7 +395,8 @@ limit_test() ->
     %% Check that all legit message types are passed through.
 
     ProcTypes = [long_gc, large_heap, busy_port, busy_dist_port],
-    [?MODULE ! {monitor, yay_pid, ProcType, whatever} || ProcType <- ProcTypes],
+    [?MODULE ! {monitor, yay_pid, ProcType, {whatever, ProcType}} ||
+        ProcType <- ProcTypes],
     ?MODULE ! reset,
     timer:sleep(100),
     Events1 = TestHandler:get_events(EventHandler),
