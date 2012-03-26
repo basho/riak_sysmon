@@ -358,8 +358,9 @@ get_node_map() ->
                      {bummer, bummer}
                 end
          end || T <- ets:tab2list(sys_dist)]
-    catch _X:_Y ->
-            io:format("~p ~p @ ~p\n", [_X, _Y, erlang:get_stacktrace()]),
+    catch X:Y ->
+            error_logger:error_msg("~s:get_node_map: ~p ~p @ ~p\n",
+                                   [?MODULE, X, Y, erlang:get_stacktrace()]),
             []
     end.
 
@@ -378,6 +379,7 @@ limit_test() ->
     PortLimit = 9,
     EventHandler = riak_sysmon_handler,
     TestHandler = riak_sysmon_testhandler,
+    {ok, _NetkernelPid} = net_kernel:start([?MODULE, shortnames]),
 
     %% Setup part 1: filter server
 
@@ -425,6 +427,7 @@ limit_test() ->
     [_] = [X || {suppressed, proc_events, _} = X <- Events2],
     [_] = [X || {suppressed, port_events, _} = X <- Events2],
     
+    ok = net_kernel:stop(),
     ok.
 
 -endif. % TEST
