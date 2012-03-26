@@ -338,24 +338,31 @@ annotate_dist_port(busy_dist_port, Port, S) ->
     end.    
 
 get_node_map() ->
-    NodesInfo = try
-                    {ok, NI} = net_kernel:nodes_info(),
-                    NI
-                catch error:badarg ->
-                    []
-                end,
-    lists:map(fun({Node, Props}) ->
-                      %% Drat, #net_address is a private record in
-                      %% kernel/src/net_address.hrl, but it's exposed via
-                      %% net_kernel:nodes_info/0.
-                      AddrRec = proplists:get_value(address, Props),
-                      case element(2, AddrRec) of
-                          X = {IP, Port} when is_tuple(IP), is_integer(Port) ->
-                              {X, Node};
-                          _X ->
-                              {unknown, Node}
-                      end
-              end, NodesInfo).
+    %% We're already peeking inside of the priave #net_address record
+    %% in kernel/src/net_address.hrl, but it's exposed via
+    %% net_kernel:nodes_info/0.  Alas, net_kernel:nodes_info/0 has
+    %% a but in R14B* and R15B, so we can't use ... so we'll cheat.
+    %% e.g.
+    %% (foo@sbb)11> ets:tab2list(sys_dist).
+    %% [{connection,bar@sbb,up,<0.56.0>,undefined,
+    %%              {net_address,{{10,1,1,34},57368},"sbb",tcp,inet},
+    %%              [],normal}]
+    try
+        [begin
+             %% element(6, T) should be a #net_address record
+             %% element(2, #net_address) is an {IpAddr, Port} tuple.
+             if element(1, T) == connection,
+                size(element(2, element(6, T))) == 2 ->
+                     {element(2, element(6, T)), element(2, T)};
+                true ->
+                     {bummer, bummer}
+                end
+         end || T <- ets:tab2list(sys_dist)]
+    catch X:Y ->
+            error_logger:error_msg("~s:get_node_map: ~p ~p @ ~p\n",
+                                   [?MODULE, X, Y, erlang:get_stacktrace()]),
+            []
+    end.
 
 -ifdef(TEST).
 
@@ -372,6 +379,7 @@ limit_test() ->
     PortLimit = 9,
     EventHandler = riak_sysmon_handler,
     TestHandler = riak_sysmon_testhandler,
+    {ok, _NetkernelPid} = net_kernel:start([?MODULE, shortnames]),
 
     %% Setup part 1: filter server
 
@@ -419,6 +427,7 @@ limit_test() ->
     [_] = [X || {suppressed, proc_events, _} = X <- Events2],
     [_] = [X || {suppressed, port_events, _} = X <- Events2],
     
+    ok = net_kernel:stop(),
     ok.
 
 -endif. % TEST
