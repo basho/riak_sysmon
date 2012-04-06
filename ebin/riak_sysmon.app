@@ -1,7 +1,7 @@
 {application, riak_sysmon,
  [
   {description, "Rate-limiting system_monitor event handler"},
-  {vsn, "1.1.0"},
+  {vsn, "1.1.2"},
   {modules, [
              riak_sysmon_app,
              riak_sysmon_example_handler,
