@@ -193,7 +193,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({monitor, _, ProcType, _} = Info,
             #state{proc_count = Procs, proc_limit = ProcLimit} = State)
-  when ProcType == long_gc; ProcType == large_heap ->
+  when ProcType == long_gc; ProcType == large_heap; ProcType == long_schedule ->
     NewProcs = Procs + 1,
     if NewProcs =< ProcLimit ->
             gen_event:notify(riak_sysmon_handler, Info);
