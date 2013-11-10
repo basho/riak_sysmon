@@ -61,7 +61,7 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    start_link([gc, heap, port, dist_port]).
+    start_link([gc, heap, port, dist_port, schedule]).
 
 %% @doc Start riak_sysmon filter process
 %%
@@ -90,7 +90,7 @@ start_link(MonitorProps) ->
 
 add_custom_handler(Module, Args) ->
     gen_event:add_sup_handler(riak_sysmon_handler, Module, Args).
-    
+
 call_custom_handler(Module, Call) ->
     call_custom_handler(Module, Call, infinity).
 
@@ -124,6 +124,7 @@ init(MonitorProps) ->
     HeapWordLimit = get_heap_word_limit(),
     BusyPortP = get_busy_port(),
     BusyDistPortP = get_busy_dist_port(),
+    ScheduleMsLimit = get_schedule_ms_limit(),
     Opts = lists:flatten(
              [[{long_gc, GcMsLimit} || lists:member(gc, MonitorProps)
                                            andalso GcMsLimit > 0],
@@ -132,7 +133,9 @@ init(MonitorProps) ->
               [busy_port || lists:member(port, MonitorProps)
                                 andalso BusyPortP],
               [busy_dist_port || lists:member(dist_port, MonitorProps)
-                                     andalso BusyDistPortP]]),
+                                     andalso BusyDistPortP],
+              [{long_schedule, ScheduleMsLimit} || lists:member(schedule, MonitorProps)
+                                                          andalso ScheduleMsLimit > 0]]),
     _ = erlang:system_monitor(self(), Opts),
     {ok, #state{proc_limit = get_proc_limit(),
                 port_limit = get_port_limit(),
@@ -309,6 +312,9 @@ get_busy_port() ->
 get_busy_dist_port() ->
     boolean_app_env(riak_sysmon, busy_dist_port, true).
 
+get_schedule_ms_limit() ->
+    nonzero_app_env(riak_sysmon, schedule_ms_limit, 50).
+
 nonzero_app_env(App, Key, Default) ->
     case application:get_env(App, Key) of
         {ok, N} when N >= 0 -> N;
@@ -320,7 +326,7 @@ boolean_app_env(App, Key, Default) ->
         {ok, B} when B == true; B == false -> B;
         _                                  -> Default
     end.
-    
+
 start_interval_timer() ->
     {ok, TRef} = timer:send_interval(1000, reset),
     TRef.
@@ -335,7 +341,7 @@ annotate_dist_port(busy_dist_port, Port, S) ->
     catch
         _X:_Y ->
             Port
-    end.    
+    end.
 
 get_node_map() ->
     %% We're already peeking inside of the priave #net_address record
@@ -409,7 +415,7 @@ limit_test() ->
     timer:sleep(100),
     Events1 = TestHandler:get_events(EventHandler),
     [true = lists:keymember(ProcType, 3, Events1) || ProcType <- ProcTypes],
-    
+
     %% Check that limits are enforced.
 
     [?MODULE ! {monitor, pid1, long_gc, X} ||
@@ -426,7 +432,7 @@ limit_test() ->
     PortLimit = length([X || {monitor, _, busy_port, _} = X <- Events2]),
     [_] = [X || {suppressed, proc_events, _} = X <- Events2],
     [_] = [X || {suppressed, port_events, _} = X <- Events2],
-    
+
     ok = net_kernel:stop(),
     ok.
 
