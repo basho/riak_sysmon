@@ -396,6 +396,7 @@ limit_test() ->
     %% Use huge limits to avoid unexpected messages that could confuse us.
     application:set_env(riak_sysmon, gc_ms_limit, 999999999),
     application:set_env(riak_sysmon, heap_word_limit, 999999999),
+    application:set_env(riak_sysmon, schedule_ms_limit, 999999999),
     {ok, _FilterPid} = ?MODULE:start_link(),
     ?MODULE:stop_timer(),
 
@@ -408,7 +409,8 @@ limit_test() ->
 
     %% Check that all legit message types are passed through.
 
-    ProcTypes = [long_gc, large_heap, busy_port, busy_dist_port],
+    ProcTypes = [long_gc, large_heap, busy_port, busy_dist_port,
+        long_schedule],
     [?MODULE ! {monitor, yay_pid, ProcType, {whatever, ProcType}} ||
         ProcType <- ProcTypes],
     ?MODULE ! reset,
