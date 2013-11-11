@@ -38,6 +38,12 @@
 -export([stop_timer/0, start_timer/0]).        % For testing use only!
 -endif. % TEST
 
+-ifdef(long_schedule).
+-define(SUPPORTED_MONITORS, [gc, heap, port, dist_port, schedule]).
+-else.
+-define(SUPPORTED_MONITORS, [gc, heap, port, dist_port]).
+-endif.
+
 -record(state, {
           proc_count = 0      :: integer(),
           proc_limit = 10     :: integer(),
@@ -61,7 +67,8 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    start_link([gc, heap, port, dist_port, schedule]).
+    io:format("~p~n", [?SUPPORTED_MONITORS]),
+    start_link(?SUPPORTED_MONITORS).
 
 %% @doc Start riak_sysmon filter process
 %%
