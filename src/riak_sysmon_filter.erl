@@ -200,7 +200,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({monitor, _, ProcType, _} = Info,
             #state{proc_count = Procs, proc_limit = ProcLimit} = State)
-  when ProcType == long_gc; ProcType == large_heap ->
+  when ProcType == long_gc; ProcType == large_heap; ProcType == long_schedule ->
     NewProcs = Procs + 1,
     if NewProcs =< ProcLimit ->
             gen_event:notify(riak_sysmon_handler, Info);
@@ -403,6 +403,7 @@ limit_test() ->
     %% Use huge limits to avoid unexpected messages that could confuse us.
     application:set_env(riak_sysmon, gc_ms_limit, 999999999),
     application:set_env(riak_sysmon, heap_word_limit, 999999999),
+    application:set_env(riak_sysmon, schedule_ms_limit, 999999999),
     {ok, _FilterPid} = ?MODULE:start_link(),
     ?MODULE:stop_timer(),
 
@@ -415,7 +416,8 @@ limit_test() ->
 
     %% Check that all legit message types are passed through.
 
-    ProcTypes = [long_gc, large_heap, busy_port, busy_dist_port],
+    ProcTypes = [long_gc, large_heap, busy_port, busy_dist_port,
+        long_schedule],
     [?MODULE ! {monitor, yay_pid, ProcType, {whatever, ProcType}} ||
         ProcType <- ProcTypes],
     ?MODULE ! reset,
