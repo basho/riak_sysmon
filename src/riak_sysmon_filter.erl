@@ -67,7 +67,6 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    io:format("~p~n", [?SUPPORTED_MONITORS]),
     start_link(?SUPPORTED_MONITORS).
 
 %% @doc Start riak_sysmon filter process
