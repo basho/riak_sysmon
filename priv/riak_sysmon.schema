@@ -1,3 +1,4 @@
+%%-*- mode: erlang -*-
 %% riak_sysmon config
 %% @doc To disable forwarding events of a particular type, use a
 %% limit of 0.
