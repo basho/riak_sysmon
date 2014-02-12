@@ -6,7 +6,7 @@
 {mapping, "runtime_health.thresholds.busy_processes", "riak_sysmon.process_limit", [
   {default, 30},
   {datatype, integer},
-  {level, advanced}
+  hidden
 ]}.
 
 %% @doc The threshold at which to warn about the number of ports that
@@ -15,7 +15,7 @@
 {mapping, "runtime_health.thresholds.busy_ports", "riak_sysmon.port_limit", [
   {default, 2},
   {datatype, integer},
-  {level, advanced}
+  hidden
 ]}.
 
 %% @doc A process will become busy when it exceeds this amount of time
@@ -28,7 +28,7 @@
   {default, off},
   {datatype, [{atom, off},
               {duration, ms}]},
-  {level, advanced}
+  hidden
 ]}.
 
 {translation, "riak_sysmon.gc_ms_limit",
@@ -44,7 +44,7 @@
 {mapping, "runtime_health.triggers.process.heap_size", "riak_sysmon.heap_word_limit", [
   {default, "160444000"},
   {datatype, [bytesize, {atom, off}]},
-  {level, advanced}
+  hidden
 ]}.
 
 {translation, "riak_sysmon.heap_word_limit",
@@ -63,7 +63,7 @@ end}.
 {mapping, "runtime_health.triggers.port", "riak_sysmon.busy_port", [
   {default, on},
   {datatype, flag},
-  {level, advanced}
+  hidden
 ]}.
 
 %% @doc Whether distribution ports with full input buffers will be
@@ -73,5 +73,5 @@ end}.
 {mapping, "runtime_health.triggers.distribution_port", "riak_sysmon.busy_dist_port", [
   {default, on},
   {datatype, flag},
-  {level, advanced}
+  hidden
 ]}.
