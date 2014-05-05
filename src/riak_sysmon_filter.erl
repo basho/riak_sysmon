@@ -363,9 +363,14 @@ get_node_map() ->
                              []
                      end]
     catch X:Y ->
-            error_logger:error_msg("~s:get_node_map: ~p ~p @ ~p\n",
-                                   [?MODULE, X, Y, erlang:get_stacktrace()]),
-            []
+            case ets:info(sys_dist, name) of
+                undefined ->
+                    [];
+                sys_dist ->
+                    error_logger:error_msg("~s:get_node_map: ~p ~p @ ~p\n",
+                                           [?MODULE, X, Y, erlang:get_stacktrace()]),
+                    []
+            end
     end.
 
 -ifdef(TEST).
