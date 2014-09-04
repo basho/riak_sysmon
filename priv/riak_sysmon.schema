@@ -1,0 +1,77 @@
+%%-*- mode: erlang -*-
+
+%% @doc The threshold at which to warn about the number of processes
+%% that are overly busy. Processes with large heaps or that take a
+%% long time to garbage collect will count toward this threshold.
+{mapping, "runtime_health.thresholds.busy_processes", "riak_sysmon.process_limit", [
+  {default, 30},
+  {datatype, integer},
+  hidden
+]}.
+
+%% @doc The threshold at which to warn about the number of ports that
+%% are overly busy. Ports with full input buffers count toward this
+%% threshold.
+{mapping, "runtime_health.thresholds.busy_ports", "riak_sysmon.port_limit", [
+  {default, 2},
+  {datatype, integer},
+  hidden
+]}.
+
+%% @doc A process will become busy when it exceeds this amount of time
+%% doing garbage collection.
+%%
+%% NOTE: Enabling this setting can cause performance problems on
+%% multi-core systems.
+%% @see runtime_health.thresholds.busy_processes
+{mapping, "runtime_health.triggers.process.garbage_collection", "riak_sysmon.gc_ms_limit", [
+  {default, off},
+  {datatype, [{atom, off},
+              {duration, ms}]},
+  hidden
+]}.
+
+{translation, "riak_sysmon.gc_ms_limit",
+ fun(Conf) ->
+     case cuttlefish:conf_get("runtime_health.triggers.process.garbage_collection", Conf) of
+         off -> 0;
+         Int -> Int
+     end
+ end}.
+
+%% @doc A process will become busy when its heap exceeds this size.
+%% @see runtime_health.thresholds.busy_processes
+{mapping, "runtime_health.triggers.process.heap_size", "riak_sysmon.heap_word_limit", [
+  {default, "160444000"},
+  {datatype, [bytesize, {atom, off}]},
+  hidden
+]}.
+
+{translation, "riak_sysmon.heap_word_limit",
+ fun(Conf) ->
+    case cuttlefish:conf_get("runtime_health.triggers.process.heap_size", Conf) of
+        off -> 0;
+        Bytes ->
+            WordSize = erlang:system_info(wordsize),
+            Bytes div WordSize
+    end
+end}.
+
+%% @doc Whether ports with full input buffers will be counted as
+%% busy. Ports can represent open files or network sockets.
+%% @see runtime_health.thresholds.busy_ports
+{mapping, "runtime_health.triggers.port", "riak_sysmon.busy_port", [
+  {default, on},
+  {datatype, flag},
+  hidden
+]}.
+
+%% @doc Whether distribution ports with full input buffers will be
+%% counted as busy. Distribution ports connect Riak nodes within a
+%% single cluster.
+%% @see runtime_health.thresholds.busy_ports
+{mapping, "runtime_health.triggers.distribution_port", "riak_sysmon.busy_dist_port", [
+  {default, on},
+  {datatype, flag},
+  hidden
+]}.
