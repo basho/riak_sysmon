@@ -39,6 +39,23 @@
      end
  end}.
 
+%% @doc A process will become busy when it exceeds this amount of time
+%% during a single process scheduling & execution cycle.
+{mapping, "runtime_health.triggers.process.long_schedule", "riak_sysmon.schedule_ms_limit", [
+  {default, off},
+  {datatype, [{atom, off},
+              {duration, ms}]},
+  hidden
+]}.
+
+{translation, "riak_sysmon.schedule_ms_limit",
+ fun(Conf) ->
+     case cuttlefish:conf_get("runtime_health.triggers.process.long_schedule", Conf) of
+         off -> 0;
+         Int -> Int
+     end
+ end}.
+
 %% @doc A process will become busy when its heap exceeds this size.
 %% @see runtime_health.thresholds.busy_processes
 {mapping, "runtime_health.triggers.process.heap_size", "riak_sysmon.heap_word_limit", [
