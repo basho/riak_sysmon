@@ -38,6 +38,12 @@
 -export([stop_timer/0, start_timer/0]).        % For testing use only!
 -endif. % TEST
 
+-ifdef(long_schedule).
+-define(SUPPORTED_MONITORS, [gc, heap, port, dist_port, schedule]).
+-else.
+-define(SUPPORTED_MONITORS, [gc, heap, port, dist_port]).
+-endif.
+
 -record(state, {
           proc_count = 0      :: integer(),
           proc_limit = 10     :: integer(),
@@ -61,7 +67,7 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    start_link([gc, heap, port, dist_port]).
+    start_link(?SUPPORTED_MONITORS).
 
 %% @doc Start riak_sysmon filter process
 %%
@@ -90,7 +96,7 @@ start_link(MonitorProps) ->
 
 add_custom_handler(Module, Args) ->
     gen_event:add_sup_handler(riak_sysmon_handler, Module, Args).
-    
+
 call_custom_handler(Module, Call) ->
     call_custom_handler(Module, Call, infinity).
 
@@ -124,6 +130,7 @@ init(MonitorProps) ->
     HeapWordLimit = get_heap_word_limit(),
     BusyPortP = get_busy_port(),
     BusyDistPortP = get_busy_dist_port(),
+    ScheduleMsLimit = get_schedule_ms_limit(),
     Opts = lists:flatten(
              [[{long_gc, GcMsLimit} || lists:member(gc, MonitorProps)
                                            andalso GcMsLimit > 0],
@@ -132,7 +139,9 @@ init(MonitorProps) ->
               [busy_port || lists:member(port, MonitorProps)
                                 andalso BusyPortP],
               [busy_dist_port || lists:member(dist_port, MonitorProps)
-                                     andalso BusyDistPortP]]),
+                                     andalso BusyDistPortP],
+              [{long_schedule, ScheduleMsLimit} || lists:member(schedule, MonitorProps)
+                                                          andalso ScheduleMsLimit > 0]]),
     _ = erlang:system_monitor(self(), Opts),
     {ok, #state{proc_limit = get_proc_limit(),
                 port_limit = get_port_limit(),
@@ -190,7 +199,7 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({monitor, _, ProcType, _} = Info,
             #state{proc_count = Procs, proc_limit = ProcLimit} = State)
-  when ProcType == long_gc; ProcType == large_heap ->
+  when ProcType == long_gc; ProcType == large_heap; ProcType == long_schedule ->
     NewProcs = Procs + 1,
     if NewProcs =< ProcLimit ->
             gen_event:notify(riak_sysmon_handler, Info);
@@ -309,6 +318,9 @@ get_busy_port() ->
 get_busy_dist_port() ->
     boolean_app_env(riak_sysmon, busy_dist_port, true).
 
+get_schedule_ms_limit() ->
+    nonzero_app_env(riak_sysmon, schedule_ms_limit, 50).
+
 nonzero_app_env(App, Key, Default) ->
     case application:get_env(App, Key) of
         {ok, N} when N >= 0 -> N;
@@ -320,7 +332,7 @@ boolean_app_env(App, Key, Default) ->
         {ok, B} when B == true; B == false -> B;
         _                                  -> Default
     end.
-    
+
 start_interval_timer() ->
     {ok, TRef} = timer:send_interval(1000, reset),
     TRef.
@@ -335,7 +347,7 @@ annotate_dist_port(busy_dist_port, Port, S) ->
     catch
         _X:_Y ->
             Port
-    end.    
+    end.
 
 get_node_map() ->
     %% We're already peeking inside of the priave #net_address record
@@ -390,6 +402,7 @@ limit_test() ->
     %% Use huge limits to avoid unexpected messages that could confuse us.
     application:set_env(riak_sysmon, gc_ms_limit, 999999999),
     application:set_env(riak_sysmon, heap_word_limit, 999999999),
+    application:set_env(riak_sysmon, schedule_ms_limit, 999999999),
     {ok, _FilterPid} = ?MODULE:start_link(),
     ?MODULE:stop_timer(),
 
@@ -402,14 +415,15 @@ limit_test() ->
 
     %% Check that all legit message types are passed through.
 
-    ProcTypes = [long_gc, large_heap, busy_port, busy_dist_port],
+    ProcTypes = [long_gc, large_heap, busy_port, busy_dist_port,
+        long_schedule],
     [?MODULE ! {monitor, yay_pid, ProcType, {whatever, ProcType}} ||
         ProcType <- ProcTypes],
     ?MODULE ! reset,
     timer:sleep(100),
     Events1 = TestHandler:get_events(EventHandler),
     [true = lists:keymember(ProcType, 3, Events1) || ProcType <- ProcTypes],
-    
+
     %% Check that limits are enforced.
 
     [?MODULE ! {monitor, pid1, long_gc, X} ||
@@ -426,7 +440,7 @@ limit_test() ->
     PortLimit = length([X || {monitor, _, busy_port, _} = X <- Events2]),
     [_] = [X || {suppressed, proc_events, _} = X <- Events2],
     [_] = [X || {suppressed, port_events, _} = X <- Events2],
-    
+
     ok = net_kernel:stop(),
     ok.
 

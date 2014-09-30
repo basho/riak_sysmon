@@ -6,6 +6,7 @@
 -define(DEFAULT_PROCESS_LIMIT, 30).
 -define(DEFAULT_PORT_LIMIT, 2).
 -define(DEFAULT_GC_MS_LIMIT, 0).
+-define(DEFAULT_SCHEDULE_MS_LIMIT, 0).
 -define(DEFAULT_HEAP_WORD_LIMIT, 40111000).
 -define(DEFAULT_BUSY_PORT, true).
 -define(DEFAULT_BUSY_DIST_PORT, true).
@@ -25,6 +26,7 @@ basic_schema_test() ->
     cuttlefish_unit:assert_config(Config, "riak_sysmon.process_limit", ?DEFAULT_PROCESS_LIMIT),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.port_limit", ?DEFAULT_PORT_LIMIT),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.gc_ms_limit", ?DEFAULT_GC_MS_LIMIT),
+    cuttlefish_unit:assert_config(Config, "riak_sysmon.schedule_ms_limit", ?DEFAULT_SCHEDULE_MS_LIMIT),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.heap_word_limit", HeapSize),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.busy_port", ?DEFAULT_BUSY_PORT),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.busy_dist_port", ?DEFAULT_BUSY_DIST_PORT),
@@ -37,6 +39,7 @@ override_schema_test() ->
         {["runtime_health", "thresholds", "busy_processes"], ?PLUS1(?DEFAULT_PROCESS_LIMIT)},
         {["runtime_health", "thresholds", "busy_ports"], ?PLUS1(?DEFAULT_PORT_LIMIT)},
         {["runtime_health", "triggers", "process", "garbage_collection"], "1ms"},
+        {["runtime_health", "triggers", "process", "long_schedule"], "1ms"},
         {["runtime_health", "triggers", "process", "heap_size"], "400MB"},
         {["runtime_health", "triggers", "port"], off},
         {["runtime_health", "triggers", "distribution_port"], off}
@@ -50,6 +53,7 @@ override_schema_test() ->
     cuttlefish_unit:assert_config(Config, "riak_sysmon.process_limit", ?PLUS1(?DEFAULT_PROCESS_LIMIT)),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.port_limit", ?PLUS1(?DEFAULT_PORT_LIMIT)),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.gc_ms_limit", ?PLUS1(?DEFAULT_GC_MS_LIMIT)),
+    cuttlefish_unit:assert_config(Config, "riak_sysmon.schedule_ms_limit", ?PLUS1(?DEFAULT_SCHEDULE_MS_LIMIT)),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.heap_word_limit", HeapSize),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.busy_port", not ?DEFAULT_BUSY_PORT),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.busy_dist_port", not ?DEFAULT_BUSY_DIST_PORT),
