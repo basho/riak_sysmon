@@ -1,6 +1,8 @@
-.PHONY: all deps clean test doc
+.PHONY: all deps clean doc
 
-all:
+all: deps compile
+
+compile:
 	./rebar compile
 
 deps:
@@ -9,8 +11,7 @@ deps:
 clean:
 	./rebar clean
 
-test: all
-	./rebar eunit
-
 doc: all
 	./rebar doc
+
+include tools.mk
