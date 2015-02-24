@@ -5,3 +5,4 @@ doc/erlang.png
 doc/*.html
 doc/stylesheet.css
 deps
+.local_dialyzer_plt
