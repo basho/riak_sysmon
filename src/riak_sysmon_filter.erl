@@ -1,4 +1,6 @@
-%% Copyright (c) 2011 Basho Technologies, Inc.  All Rights Reserved.
+%% -------------------------------------------------------------------
+%%
+%% Copyright (c) 2011-2013,2015 Basho Technologies, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -13,6 +15,8 @@
 %% KIND, either express or implied.  See the License for the
 %% specific language governing permissions and limitations
 %% under the License.
+%%
+%% -------------------------------------------------------------------
 
 %% @doc Filtering/rate-limiting mechanism for the Erlang virtual machine's
 %% `system_monitor' events.
@@ -38,17 +42,15 @@
 -export([stop_timer/0, start_timer/0]).        % For testing use only!
 -endif. % TEST
 
+-include_lib("otp_compat/include/otp_compat.hrl").
+
 -ifdef(long_schedule).
 -define(SUPPORTED_MONITORS, [gc, heap, port, dist_port, schedule]).
 -else.
 -define(SUPPORTED_MONITORS, [gc, heap, port, dist_port]).
 -endif.
 
--ifdef(namespaced_types).
--type port_list() :: gb_trees:tree().
--else.
--type port_list() :: gb_tree().
--endif.
+-type port_list() :: gb_tree_t().
 
 -record(state, {
           proc_count = 0      :: integer(),
