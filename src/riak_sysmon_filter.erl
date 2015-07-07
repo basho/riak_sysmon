@@ -391,6 +391,9 @@ start_timer() ->
     gen_server:call(?MODULE, start_timer).
 
 limit_test() ->
+
+    %% Start epmd
+    os:cmd("epmd -daemon"),
     %% Constants ... limits should be at least one or test case will break
 
     ProcLimit = 10,
