@@ -15,8 +15,8 @@
 %% basic schema test will check to make sure that all defaults from the schema
 %% make it into the generated app.config
 basic_schema_test() ->
-    %% The defaults are defined in ../priv/riak_sysmon.schema. it is the file under test.
-    Config = cuttlefish_unit:generate_config("../priv/riak_sysmon.schema", []),
+    %% The defaults are defined in priv/riak_sysmon.schema. it is the file under test.
+    Config = cuttlefish_unit:generate_config("priv/riak_sysmon.schema", []),
 
     HeapSize = case erlang:system_info(wordsize) of
                    4 -> ?DEFAULT_HEAP_WORD_LIMIT;
@@ -48,7 +48,7 @@ override_schema_test() ->
     WordSize = erlang:system_info(wordsize),
     HeapSize = (400 * 1024 * 1024) div WordSize,
 
-    Config = cuttlefish_unit:generate_config("../priv/riak_sysmon.schema", Conf),
+    Config = cuttlefish_unit:generate_config("priv/riak_sysmon.schema", Conf),
 
     cuttlefish_unit:assert_config(Config, "riak_sysmon.process_limit", ?PLUS1(?DEFAULT_PROCESS_LIMIT)),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.port_limit", ?PLUS1(?DEFAULT_PORT_LIMIT)),
