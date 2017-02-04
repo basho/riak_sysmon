@@ -1,4 +1,6 @@
-%% Copyright (c) 2011 Basho Technologies, Inc.  All Rights Reserved.
+%% -------------------------------------------------------------------
+%%
+%% Copyright (c) 2011-2017 Basho Technologies, Inc.
 %%
 %% This file is provided to you under the Apache License,
 %% Version 2.0 (the "License"); you may not use this file
@@ -13,12 +15,13 @@
 %% KIND, either express or implied.  See the License for the
 %% specific language governing permissions and limitations
 %% under the License.
+%%
+%% -------------------------------------------------------------------
 
 %% @doc Filtering/rate-limiting mechanism for the Erlang virtual machine's
 %% `system_monitor' events.
 %%
 %% See the `README.md' file at the top of the source repository for details.
-
 -module(riak_sysmon_filter).
 
 -behaviour(gen_server).
@@ -38,16 +41,42 @@
 -export([stop_timer/0, start_timer/0]).        % For testing use only!
 -endif. % TEST
 
--ifdef(long_schedule).
--define(SUPPORTED_MONITORS, [gc, heap, port, dist_port, schedule]).
--else.
--define(SUPPORTED_MONITORS, [gc, heap, port, dist_port]).
--endif.
+-type sysmon_option() :: atom() | {atom(), pos_integer()}.
 
--ifdef(namespaced_types).
--type port_list() :: gb_trees:tree().
--else.
+%%  The default limits below here are more of educated guesses than
+%%  based on hard experience.  Practical upper limits can vary quite a
+%%  bit by application & workload and are usually found by
+%%  experimentation.
+
+-define(SM_DEFAULT_BUSY_PORT, true).
+-define(SM_DEFAULT_BUSY_DIST_PORT, true).
+-define(SM_DEFAULT_GC_MS_LIMIT, 50).
+
+%%  10 Mwords = 40MB on a 32-bit VM, 80MB on a 64-bit VM
+-define(SM_DEFAULT_HEAP_WORD_LIMIT, (10 * 1024 * 1024)).
+
+%%  Monitoring of uninterrupted runtime is available from R16B01 on, the
+%%  version is checked at initialization of this module and the option
+%%  is set if supported.
+%%  Anything below 100ms is likely normal, half that is really to look
+%%  for long-running NIFs.
+-define(SM_DEFAULT_SCHEDULE_MS_LIMIT, 50).
+
+%%  The complete list of erlang:system_monitor/2 options that are supported.
+%%  Anything not in this list is ignored.
+-define(SUPPORTED_MONITORS,
+    [busy_port, busy_dist_port, large_heap, long_gc, long_schedule]).
+
+%%  'Old' monitor option keys. These are mapped to the respective keys above
+%%  by the init_sm_opts/2 function.
+%%  It would be nice if these went away, but we can't know that nobody is
+%%  using them.
+-define(OLD_SUPPORTED_MONITORS, [port, dist_port, heap, gc, schedule]).
+
+-ifdef(NO_NAMESPACED_TYPES).
 -type port_list() :: gb_tree().
+-else.
+-type port_list() :: gb_trees:tree().
 -endif.
 
 -record(state, {
@@ -66,8 +95,7 @@
 %%%===================================================================
 
 %%--------------------------------------------------------------------
-%% @doc
-%% Starts the server
+%% @doc Start the riak_sysmon filter process, monitoring all supported events.
 %%
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
@@ -75,22 +103,38 @@
 start_link() ->
     start_link(?SUPPORTED_MONITORS).
 
-%% @doc Start riak_sysmon filter process
+%%--------------------------------------------------------------------
+%% @doc Start the riak_sysmon filter process, monitoring specified events.
 %%
-%% The `MonitorProps' arg is a property list that may contain zero
-%% or more of the following atoms:
+%% The `MonitorProps' arg is a property list that may contain zero or more
+%% of the following atoms, descibed in detail in the documentation fo the
+%% `erlang:system_monitor/2' function:
 %% <ul>
-%% <li> <b>gc</b> Enable long garbage collection events.
-%%      The minimum time (in milliseconds) is defined by the application
-%%      `riak_sysmon' environment variable `gc_ms_limit'.
+%% <li> <b>busy_port</b> Enable process `busy_port' events.
+%%      This can be explicitly disabled by setting the `riak_sysmon'
+%%      environment variable `busy_port' to `false'.
 %%      </li>
-%% <li> <b>heap</b> Enable process large heap events. </li>
-%%      The minimum size (in machine words) is defined by the application
-%%      `riak_sysmon' environment variable `process_heap_limit'.
-%% <li> <b>busy_port</b> Enable `busy_port' events. </li>
-%% <li> <b>busy_dist_port</b> Enable `busy_dist_port' events. </li>
+%% <li> <b>busy_dist_port</b> Enable process `busy_dist_port' events.
+%%      This can be explicitly disabled by setting the `riak_sysmon'
+%%      environment variable `busy_dist_port' to `false'.
+%%      </li>
+%% <li> <b>large_heap</b> Enable process `large_heap' events.
+%%      The default minimum size (in machine words) can be overridden with the
+%%      application `riak_sysmon' environment variable `process_heap_limit'.
+%%      </li>
+%% <li> <b>long_gc</b> Enable process `long_gc' (long garbage collection) events.
+%%      The default minimum time (in milliseconds) can be overridden with the
+%%      application `riak_sysmon' environment variable `gc_ms_limit'.
+%%      </li>
+%% <li> <b>long_schedule</b> Enable process `long_schedule' events.
+%%      The default minimum time (in milliseconds) can be overridden with the
+%%      application `riak_sysmon' environment variable `schedule_ms_limit'.
+%%      This option is only supported on Erlang/OTP R16B01 and later, it is
+%%      silently ignored on earlier releases.
+%%      </li>
 %% </ul>
-
+%% @end
+%%--------------------------------------------------------------------
 start_link(MonitorProps) ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, MonitorProps, []).
 
@@ -132,22 +176,7 @@ call_custom_handler(Module, Call, Timeout) ->
 %% @end
 %%--------------------------------------------------------------------
 init(MonitorProps) ->
-    GcMsLimit = get_gc_ms_limit(),
-    HeapWordLimit = get_heap_word_limit(),
-    BusyPortP = get_busy_port(),
-    BusyDistPortP = get_busy_dist_port(),
-    ScheduleMsLimit = get_schedule_ms_limit(),
-    Opts = lists:flatten(
-             [[{long_gc, GcMsLimit} || lists:member(gc, MonitorProps)
-                                           andalso GcMsLimit > 0],
-              [{large_heap, HeapWordLimit} || lists:member(heap, MonitorProps)
-                                                  andalso HeapWordLimit > 0],
-              [busy_port || lists:member(port, MonitorProps)
-                                andalso BusyPortP],
-              [busy_dist_port || lists:member(dist_port, MonitorProps)
-                                     andalso BusyDistPortP],
-              [{long_schedule, ScheduleMsLimit} || lists:member(schedule, MonitorProps)
-                                                          andalso ScheduleMsLimit > 0]]),
+    Opts = lists:foldl(fun init_sm_opts/2, [], MonitorProps),
     _ = erlang:system_monitor(self(), Opts),
     {ok, #state{proc_limit = get_proc_limit(),
                 port_limit = get_port_limit(),
@@ -301,38 +330,105 @@ code_change(_OldVsn, State, _Extra) ->
 %% To disable forwarding events of a particular type, use a limit of 0.
 
 get_proc_limit() ->
-    nonzero_app_env(riak_sysmon, process_limit, 30).
+    nonneg_app_env(riak_sysmon, process_limit, 30).
 
 get_port_limit() ->
-    nonzero_app_env(riak_sysmon, port_limit, 30).
+    nonneg_app_env(riak_sysmon, port_limit, 30).
 
-%% The default limits below here are more of educated guesses than
-%% based on hard experience.  Practical upper limits can vary quite a
-%% bit by application & workload and are usually found by
-%% experimentation.
+-spec init_sm_opts(Option :: atom(), Options :: [sysmon_option()])
+        -> [sysmon_option()].
+%%
+%%  Initialize options for erlang:system_monitor/2
+%%
+%%  It's important to note that only some of the incoming option settings
+%%  use the same key that's used in the system monitor, so the Option may
+%%  need to be mapped to the appropriate configuration element name for
+%%  retrieval.
+%%
+init_sm_opts(busy_port = Option, Options) ->
+    case boolean_app_env(riak_sysmon, Option, ?SM_DEFAULT_BUSY_PORT) of
+        true ->
+            [Option | Options];
+        _ ->
+            Options
+    end;
+init_sm_opts(busy_dist_port = Option, Options) ->
+    case boolean_app_env(riak_sysmon, Option, ?SM_DEFAULT_BUSY_DIST_PORT) of
+        true ->
+            [Option | Options];
+        _ ->
+            Options
+    end;
+init_sm_opts(large_heap = Option, Options) ->
+    case nonneg_app_env(riak_sysmon,
+            heap_word_limit, ?SM_DEFAULT_HEAP_WORD_LIMIT) of
+        N when N > 0 ->
+            [{Option, N} | Options];
+        _ ->
+            Options
+    end;
+init_sm_opts(long_gc = Option, Options) ->
+    case nonneg_app_env(riak_sysmon, gc_ms_limit, ?SM_DEFAULT_GC_MS_LIMIT) of
+        N when N > 0 ->
+            [{Option, N} | Options];
+        _ ->
+            Options
+    end;
+init_sm_opts(long_schedule = Option, Options) ->
+    case long_schedule_supported(erlang:system_info(otp_release)) of
+        true ->
+            case nonneg_app_env(riak_sysmon,
+                    schedule_ms_limit, ?SM_DEFAULT_SCHEDULE_MS_LIMIT) of
+                N when N > 0 ->
+                    [{Option, N} | Options];
+                _ ->
+                    Options
+            end;
+        _ ->
+            Options
+    end;
+%%
+%%  Map the 'old' keys to the system_monitor ones.
+%%  It would be nice if these went away, but we can't know that nobody is
+%%  using them.
+%%
+init_sm_opts(gc, Opts)        -> init_sm_opts(long_gc, Opts);
+init_sm_opts(heap, Opts)      -> init_sm_opts(large_heap, Opts);
+init_sm_opts(port, Opts)      -> init_sm_opts(busy_port, Opts);
+init_sm_opts(dist_port, Opts) -> init_sm_opts(busy_dist_port, Opts);
+init_sm_opts(schedule, Opts)  -> init_sm_opts(long_schedule, Opts);
+%%
+%%  Ignore anything we don't recognize, don't want to blow up here.
+%%  Should these be reported in the logs? They haven't been previously ...
+%%
+init_sm_opts(_UnsupportedOption, Options) ->
+    Options.
 
-get_gc_ms_limit() ->
-    nonzero_app_env(riak_sysmon, gc_ms_limit, 50).
+-spec long_schedule_supported(OtpRel :: string()) -> boolean().
+%%
+%%  Check whether erlang:system_monitor/2 supports the long_schedule option,
+%%  added in R16B01.
+%%
+long_schedule_supported("R16B" ++ Minor) ->
+    {N, _} = string:to_integer(Minor),
+    N >= 1;
+long_schedule_supported([$R | _]) ->
+    % anything else with an 'R' prefix is older
+    false;
+long_schedule_supported(Major) ->
+    {N, _} = string:to_integer(Major),
+    N >= 17.
 
-get_heap_word_limit() ->
-    %% 10 Mwords = 40MB on a 32-bit VM, 80MB on a 64-bit VM
-    nonzero_app_env(riak_sysmon, heap_word_limit, 10*1024*1024).
-
-get_busy_port() ->
-    boolean_app_env(riak_sysmon, busy_port, true).
-
-get_busy_dist_port() ->
-    boolean_app_env(riak_sysmon, busy_dist_port, true).
-
-get_schedule_ms_limit() ->
-    nonzero_app_env(riak_sysmon, schedule_ms_limit, 50).
-
-nonzero_app_env(App, Key, Default) ->
+-spec nonneg_app_env(App :: atom(), Key :: atom(), Default :: non_neg_integer())
+        -> non_neg_integer().
+nonneg_app_env(App, Key, Default) ->
     case application:get_env(App, Key) of
         {ok, N} when N >= 0 -> N;
         _                   -> Default
     end.
 
+-spec boolean_app_env(App :: atom(), Key :: atom(), Default :: boolean())
+        -> boolean().
 boolean_app_env(App, Key, Default) ->
     case application:get_env(App, Key) of
         {ok, B} when B == true; B == false -> B;
@@ -356,7 +452,7 @@ annotate_dist_port(busy_dist_port, Port, S) ->
     end.
 
 get_node_map() ->
-    %% We're already peeking inside of the priave #net_address record
+    %% We're already peeking inside of the private #net_address record
     %% in kernel/src/net_address.hrl, but it's exposed via
     %% net_kernel:nodes_info/0.  Alas, net_kernel:nodes_info/0 has
     %% a but in R14B* and R15B, so we can't use ... so we'll cheat.
@@ -424,8 +520,7 @@ limit_test() ->
 
     %% Check that all legit message types are passed through.
 
-    ProcTypes = [long_gc, large_heap, busy_port, busy_dist_port,
-        long_schedule],
+    ProcTypes = ?SUPPORTED_MONITORS,
     [?MODULE ! {monitor, yay_pid, ProcType, {whatever, ProcType}} ||
         ProcType <- ProcTypes],
     ?MODULE ! reset,

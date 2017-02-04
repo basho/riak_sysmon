@@ -1,3 +1,23 @@
+%% -------------------------------------------------------------------
+%%
+%% Copyright (c) 2013-2017 Basho Technologies, Inc.
+%%
+%% This file is provided to you under the Apache License,
+%% Version 2.0 (the "License"); you may not use this file
+%% except in compliance with the License.  You may obtain
+%% a copy of the License at
+%%
+%%   http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing,
+%% software distributed under the License is distributed on an
+%% "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+%% KIND, either express or implied.  See the License for the
+%% specific language governing permissions and limitations
+%% under the License.
+%%
+%% -------------------------------------------------------------------
+
 -module(riak_sysmon_schema_tests).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -15,8 +35,9 @@
 %% basic schema test will check to make sure that all defaults from the schema
 %% make it into the generated app.config
 basic_schema_test() ->
-    %% The defaults are defined in ../priv/riak_sysmon.schema. it is the file under test.
-    Config = cuttlefish_unit:generate_config("../priv/riak_sysmon.schema", []),
+    %% The defaults are defined in .../priv/riak_sysmon.schema. it is the file under test.
+    Config = cuttlefish_unit:generate_config(filename:join(
+        cuttlefish_unit:lib_priv_dir(riak_sysmon_app), "riak_sysmon.schema"), []),
 
     HeapSize = case erlang:system_info(wordsize) of
                    4 -> ?DEFAULT_HEAP_WORD_LIMIT;
@@ -48,7 +69,8 @@ override_schema_test() ->
     WordSize = erlang:system_info(wordsize),
     HeapSize = (400 * 1024 * 1024) div WordSize,
 
-    Config = cuttlefish_unit:generate_config("../priv/riak_sysmon.schema", Conf),
+    Config = cuttlefish_unit:generate_config(filename:join(
+        cuttlefish_unit:lib_priv_dir(riak_sysmon_app), "riak_sysmon.schema"), Conf),
 
     cuttlefish_unit:assert_config(Config, "riak_sysmon.process_limit", ?PLUS1(?DEFAULT_PROCESS_LIMIT)),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.port_limit", ?PLUS1(?DEFAULT_PORT_LIMIT)),
