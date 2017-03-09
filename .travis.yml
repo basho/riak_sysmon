@@ -1,15 +1,9 @@
 language: erlang
 notifications:
-  webhooks: http://basho-engbot.herokuapp.com/travis?key=631c549fa6cc25d92fc5be0d36aaca9fbd22c3f3
-  email: eng@basho.com
-install:
-  - wget https://s3.amazonaws.com/rebar3/rebar3 && chmod +x rebar3
-script:
-  - ./rebar3 as prod compile
-  - ./rebar3 as check xref
-  - ./rebar3 as check dialyzer
-  - ./rebar3 eunit
-  - ./rebar3 edoc
+  slack:
+    secure: UpgROkiVZnTKJGRd10X6bFixRZjFNtVaIfZF60vw97c3+7JXgePmlGwebD5fRrbcI8L4pShGPEUSk7WR4xXQ7icSRP1twdgSaGk+BBOFWL0VJ8KzFa65kLR1UFKcR/JOMzxKe7Xyt4od8bUN/6AL7aCDi6Hh/V7T2Je8S9fz0DM=
+install: make rebar3
+script: make
 otp_release:
   - 19.2
   - 18.3
