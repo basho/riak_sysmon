@@ -355,6 +355,7 @@ annotate_dist_port(busy_dist_port, Port, S) ->
             Port
     end.
 
+-ifndef('21.0').
 get_node_map() ->
     %% We're already peeking inside of the priave #net_address record
     %% in kernel/src/net_address.hrl, but it's exposed via
@@ -381,6 +382,36 @@ get_node_map() ->
                                    [?MODULE, X, Y, erlang:get_stacktrace()]),
             []
     end.
+-else.
+get_node_map() ->
+    %% We're already peeking inside of the priave #net_address record
+    %% in kernel/src/net_address.hrl, but it's exposed via
+    %% net_kernel:nodes_info/0.  Alas, net_kernel:nodes_info/0 has
+    %% a but in R14B* and R15B, so we can't use ... so we'll cheat.
+    %% e.g.
+    %% (foo@sbb)11> ets:tab2list(sys_dist).
+    %% [{connection,bar@sbb,up,<0.56.0>,undefined,
+    %%              {net_address,{{10,1,1,34},57368},"sbb",tcp,inet},
+    %%              [],normal}]
+    try
+        [begin
+             %% element(6, T) should be a #net_address record
+             %% element(2, #net_address) is an {IpAddr, Port} tuple.
+             if element(1, T) == connection,
+                size(element(2, element(6, T))) == 2 ->
+                     {element(2, element(6, T)), element(2, T)};
+                true ->
+                     {bummer, bummer}
+                end
+         end || T <- ets:tab2list(sys_dist)]
+    catch X:Y:Trace ->
+            error_logger:error_msg("~s:get_node_map: ~p ~p @ ~p\n",
+                                   [?MODULE, X, Y, Trace]),
+            []
+    end.
+
+-endif.
+
 
 -ifdef(TEST).
 
@@ -391,9 +422,6 @@ start_timer() ->
     gen_server:call(?MODULE, start_timer).
 
 limit_test() ->
-
-    %% Start epmd
-    os:cmd("epmd -daemon"),
     %% Constants ... limits should be at least one or test case will break
 
     ProcLimit = 10,
