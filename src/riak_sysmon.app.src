@@ -10,5 +10,8 @@
   {registered, []},
   {mod, {riak_sysmon_app, []}},
   {env, [
-        ]}
+        ]},
+  {maintainers,["basho", "Heinz N. Gies"]},
+  {licenses,["Apache"]},
+  {links,[{"Github","https://github.com/basho/riak_sysmon"}]}
  ]}.

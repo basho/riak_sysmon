@@ -1,17 +1,14 @@
 .PHONY: all deps clean doc
 
-all: deps compile
+all: compile
 
 compile:
-	./rebar compile
-
-deps:
-	./rebar get-deps
+	./rebar3 compile
 
 clean:
-	./rebar clean
+	./rebar3 clean
 
 doc: all
-	./rebar doc
+	./rebar3 doc
 
 include tools.mk
