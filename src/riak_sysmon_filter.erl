@@ -472,9 +472,9 @@ get_node_map() ->
                      {bummer, bummer}
                 end
          end || T <- ets:tab2list(sys_dist)]
-    catch X:Y:S ->
+    catch X:Y ->
             error_logger:error_msg("~s:get_node_map: ~p ~p @ ~p\n",
-                                   [?MODULE, X, Y, S]),
+                                   [?MODULE, X, Y, erlang:get_stacktrace()]),
             []
     end.
 
