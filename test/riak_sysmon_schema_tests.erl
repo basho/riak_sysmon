@@ -37,7 +37,7 @@
 basic_schema_test() ->
     %% The defaults are defined in .../priv/riak_sysmon.schema. it is the file under test.
     Config = cuttlefish_unit:generate_config(filename:join(
-        cuttlefish_unit:lib_priv_dir(riak_sysmon_app), "riak_sysmon.schema"), []),
+        code:lib_dir(riak_sysmon, priv), "riak_sysmon.schema"), []),
 
     HeapSize = case erlang:system_info(wordsize) of
                    4 -> ?DEFAULT_HEAP_WORD_LIMIT;
@@ -70,7 +70,8 @@ override_schema_test() ->
     HeapSize = (400 * 1024 * 1024) div WordSize,
 
     Config = cuttlefish_unit:generate_config(filename:join(
-        cuttlefish_unit:lib_priv_dir(riak_sysmon_app), "riak_sysmon.schema"), Conf),
+        code:lib_dir(riak_sysmon, priv), "riak_sysmon.schema"), Conf),
+    io:format("~p", [Config]),
 
     cuttlefish_unit:assert_config(Config, "riak_sysmon.process_limit", ?PLUS1(?DEFAULT_PROCESS_LIMIT)),
     cuttlefish_unit:assert_config(Config, "riak_sysmon.port_limit", ?PLUS1(?DEFAULT_PORT_LIMIT)),
