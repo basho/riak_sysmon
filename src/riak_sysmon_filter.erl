@@ -26,8 +26,6 @@
 
 -behaviour(gen_server).
 
--include("stacktrace.hrl").
-
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 -endif. % TEST
@@ -474,9 +472,9 @@ get_node_map() ->
                      {bummer, bummer}
                 end
          end || T <- ets:tab2list(sys_dist)]
-    catch ?_exception_(X, Y, StackToken) ->
+    catch Class:Reason:Stacktrace ->
             error_logger:error_msg("~s:get_node_map: ~p ~p @ ~p\n",
-                                   [?MODULE, X, Y, ?_get_stacktrace_(StackToken)]),
+                                   [?MODULE, Class, Reason, Stacktrace]),
             []
     end.
 
